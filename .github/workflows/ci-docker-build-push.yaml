@@ -1,0 +1,65 @@
+name: CI Build & Push Images
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  # Detect what changed
+  changes:
+    name: "🔎 Detect Changes"
+    runs-on: ubuntu-latest
+    outputs:
+      training: ${{ steps.filter.outputs.training }}
+      serving: ${{ steps.filter.outputs.serving }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            training:
+              - 'Dockerfile'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'src/training/**'
+              - 'src/_utils/**'
+            serving:
+              - 'Dockerfile'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'src/serving/**'
+              - 'src/_utils/**'
+
+  # Build training only if training code changed
+  build-training:
+    needs: changes
+    if: ${{ needs.changes.outputs.training == 'true' }}
+    name: 🎓 Build Training Image
+    uses: opencloudhub/.github/.github/workflows/shared-ci-docker-build-push.yaml@main
+    with:
+      repo-name: "roco-radiology-vqa"
+      context: "."
+      dockerfile: "Dockerfile"
+      target: "training"
+      push-on-pr: true
+    secrets:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+
+
+  # Build serving only if serving code changed
+  build-serving:
+    needs: changes
+    if: ${{ needs.changes.outputs.serving == 'true' }}
+    name: 🚀 Build Serving Image
+    uses: opencloudhub/.github/.github/workflows/shared-ci-docker-build-push.yaml@main
+    with:
+      repo-name: "fashion-mnist-classifier-serving"
+      context: "."
+      dockerfile: "Dockerfile"
+      target: "serving"
+      push-on-pr: true
+    secrets:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}

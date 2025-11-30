@@ -1,0 +1,44 @@
+# Thesis demo: QLoRA full run (100 steps)
+# VRAM: ~8-10 GB
+data:
+  max_pixels: 602112
+  min_pixels: 3136
+  do_train: true
+  do_eval: false
+
+model:
+  name: "Qwen/Qwen2.5-VL-3B-Instruct"
+  tune_vision: false
+  tune_mlp: true
+  tune_llm: false
+
+training:
+  output_dir: "./outputs/demo_qlora"
+  max_steps: 100
+  batch_size: 1
+  gradient_accumulation_steps: 4
+  learning_rate: 2.0e-4
+  warmup_steps: 10
+  logging_steps: 5
+  save_steps: 50
+  max_length: 1024
+  
+  lora:
+    enabled: true
+    r: 64
+    alpha: 128
+    dropout: 0.1
+    target_modules: "all-linear"
+  
+  quantization:
+    enabled: true
+    type: "nf4"
+    load_in_4bit: true
+    load_in_8bit: false
+    double_quant: true
+    compute_dtype: "bfloat16"
+  
+  optimization:
+    flash_attention: false
+    gradient_checkpointing: true
+    bf16: true

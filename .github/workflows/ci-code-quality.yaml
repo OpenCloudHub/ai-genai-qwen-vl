@@ -1,0 +1,10 @@
+name: CI Code quality
+on:
+  pull_request:
+  push:
+    branches-ignore: [main] # Avoid redundancy when enforcing PRs
+
+jobs:
+  code-quality:
+    # Call the shared workflow
+    uses: opencloudhub/.github/.github/workflows/shared-ci-code-quality.yaml@main

@@ -1,0 +1,84 @@
+name: MLOPS Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      dvc_data_version_tag:
+        description: 'Data version (latest or specific like v1.0.0)'
+        required: false
+        type: string
+        default: 'latest'
+      training_entrypoint:
+        description: 'Training script entrypoint'
+        required: false
+        type: string
+        default: 'python src/training/train.py'
+      training_args:
+        description: 'Path to configs to use for training'
+        required: true
+        type: string
+        default: '--config configs/debug_qlora.yaml'
+      training_image_tag:
+        description: 'Training image tag (latest or specific like abc1234)'
+        required: false
+        type: string
+        default: 'latest'
+      serving_image_tag:
+        description: 'Serving image tag (latest or specific like abc1234)'
+        required: false
+        type: string
+        default: 'latest'
+      compute_type:
+        description: 'Compute configuration'
+        required: true
+        type: choice
+        options:
+          - 'cpu-small'
+          - 'cpu-small-distributed'
+          - 'cpu-medium'
+          - 'cpu-large'
+          - 'gpu-small'
+          - 'gpu-medium'
+          - 'gpu-large'
+        default: 'cpu-small'
+      approval_mode:
+        description: 'Approval mode'
+        required: true
+        type: choice
+        options:
+          - manual
+          - automatic
+        default: 'automatic'
+      comparison_metric:
+        description: 'Metric to compare models, mind of pre and suffixes'
+        required: true
+        type: string
+        default: 'loss'
+      comparison_higher_is_better:
+        description: "Higher metric value is better."
+        type: boolean
+        default: false
+      comparison_threshold:
+        description: 'Minimum improvement threshold (0.05 = 5%)'
+        required: true
+        type: string
+        default: '0.05'
+
+jobs:
+  train:
+    uses: OpenCloudHub/.github/.github/workflows/shared-mlops-pipeline.yaml@main
+    with:
+      model_name: "fashion-mnist-classifier"
+      dvc_dataset: "fashion-mnist"
+      dvc_data_version_tag: ${{ inputs.dvc_data_version_tag }}
+      experiment_name: "fashion-mnist"
+      training_entrypoint: ${{ inputs.training_entrypoint }}
+      training_args: ${{ inputs.training_args }}
+      training_image_tag: ${{ inputs.training_image_tag }}
+      serving_image_tag: ${{ inputs.serving_image_tag }}
+      compute_type: ${{ inputs.compute_type }}
+      approval_mode: ${{ inputs.approval_mode }}
+      comparison_metric: ${{ inputs.comparison_metric }}
+      comparison_higher_is_better: ${{ inputs.comparison_higher_is_better }}
+      comparison_threshold: ${{ inputs.comparison_threshold }}
+    secrets: inherit

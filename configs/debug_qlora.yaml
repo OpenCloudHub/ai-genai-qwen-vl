@@ -1,0 +1,46 @@
+# QLoRA validation (10 steps)
+# VRAM: ~8-10 GB
+data:
+  dvc_data_version_tag: "radiology-mini-v1.0.0"
+  do_train: true
+  do_eval: false
+
+model:
+  name: "Qwen/Qwen2.5-VL-3B-Instruct"
+  tune_vision: false
+  tune_mlp: true
+  tune_llm: false
+
+training:
+  output_dir: "./outputs/debug_qlora"
+  max_steps: 10
+  save_steps: 5
+  batch_size: 1
+  gradient_accumulation_steps: 1
+  learning_rate: 2.0e-4
+  warmup_steps: 2
+  logging_steps: 2
+  
+  lora:
+    enabled: true
+    r: 16
+    alpha: 32
+    dropout: 0.1
+    target_modules: "all-linear"
+  
+  quantization:
+    enabled: true
+    type: "nf4"
+    load_in_4bit: true
+    load_in_8bit: false
+    double_quant: true
+    compute_dtype: "bfloat16"
+  
+  optimization:
+    flash_attention: false
+    gradient_checkpointing: true
+    bf16: true
+
+ray:
+  num_workers: 1
+  use_gpu: true

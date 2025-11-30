@@ -1,0 +1,174 @@
+# MLflow artifacts and runs - THESE ARE HUGE!
+mlruns/
+mlartifacts/
+*.db
+*.db-journal
+mlflow.db
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+wheels/
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.python-version
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+notebooks/.ipynb_checkpoints/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*.bak
+.DS_Store
+Thumbs.db
+.history/
+.devcontainer/
+
+# Testing and coverage
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.pytest_cache/
+.hypothesis/
+coverage.xml
+*.cover
+.cache
+nosetests.xml
+test-results/
+junit.xml
+
+# Documentation
+docs/_build/
+docs/.doctrees/
+site/
+mkdocs.yml
+
+# Data files (usually large)
+data/*.csv
+data/*.parquet
+data/*.json
+data/*.pkl
+data/*.h5
+data/*.hdf5
+data/*.feather
+data/*.xlsx
+data/*.xls
+# Keep the data directory structure but not the files
+!data/.gitkeep
+
+# Model files (if stored locally)
+models/*.pkl
+models/*.joblib
+models/*.h5
+models/*.pt
+models/*.pth
+models/*.onnx
+saved_models/
+
+# Logs
+*.log
+logs/
+*.out
+*.err
+
+# Environment files (contain secrets)
+.env
+.env.*
+!.env.example
+.envrc
+
+# Git
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Docker files (don't copy these into the image)
+Dockerfile
+Dockerfile_*
+docker-compose.yml
+docker-compose.*.yml
+.dockerignore
+
+# Package managers
+package-lock.json
+yarn.lock
+poetry.lock
+Pipfile.lock
+# Keep uv.lock as it's needed
+!uv.lock
+
+# OS generated
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Backup files
+*.backup
+*.bak
+*.orig
+*~
+*_copy.py
+
+# Archives
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+# CI/CD
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+azure-pipelines.yml
+Jenkinsfile
+
+# Documentation source files (if not needed in container)
+*.md
+!README.md
+LICENSE
+CHANGELOG*
+AUTHORS
+CONTRIBUTORS
+
+# Test data and fixtures
+fixtures/
+test_data/
+tests/test_*.py
+conftest.py
+
+# Profiling
+*.prof
+*.lprof

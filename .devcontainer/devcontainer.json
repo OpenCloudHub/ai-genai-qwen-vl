@@ -1,0 +1,44 @@
+{
+	"name": "OpenCloudHub - AI Generative QwenVL",
+	"build": {
+		"context": "..",
+		"dockerfile": "../Dockerfile",
+		"target": "dev"
+	},
+	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace/project,type=bind",
+	"workspaceFolder": "/workspace/project",
+	"runArgs": [
+		"--network",
+		"host",
+		"--gpus",
+		"all"
+	],
+	"postCreateCommand": "pre-commit run --all",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"GitHub.copilot",
+				"GitHub.copilot-chat",
+				"ms-azuretools.vscode-docker",
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"charliermarsh.ruff",
+				"exiasr.hadolint",
+				"ms-vscode.makefile-tools",
+				"nhoizey.gremlins",
+				"timonwong.shellcheck",
+				"Gruntfuggly.todo-tree",
+				"eamodio.gitlens",
+				"oderwat.indent-rainbow"
+			],
+			"settings": {
+				"python.analysis.extraPaths": [
+					"${workspaceFolder}"
+				],
+				"jupyter.notebookFileRoot": "${workspaceFolder}"
+			}
+		}
+	}
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	// "remoteUser": "vscode"
+}
