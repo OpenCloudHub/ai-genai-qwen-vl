@@ -60,9 +60,9 @@ test = [
 # Build dependencies for flash-attn compilation (recommended by uv team)
 flash-attn = [{ requirement = "torch", match-runtime = true }]
 
-[tool.uv.extra-build-variables]
+# [tool.uv.extra-build-variables]
 # Skip CUDA build during resolution, build at sync time
-flash-attn = { FLASH_ATTENTION_SKIP_CUDA_BUILD = "TRUE" }
+# flash-attn = { FLASH_ATTENTION_SKIP_CUDA_BUILD = "TRUE" }
 
 [tool.uv]
 concurrent-builds = 1  # Critical for flash-attn

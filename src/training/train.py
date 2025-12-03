@@ -228,7 +228,7 @@ def train_worker(train_loop_config: dict):
 
     local_path, metadata = load_data_from_dvc(
         repo=infra.dvc_repo,
-        version=infra.dvc_data_version_tag,
+        version=infra.dvc_data_version,
         processed_path=infra.dvc_processed_path,
         metadata_path=infra.dvc_metadata_path,
     )
@@ -240,11 +240,11 @@ def train_worker(train_loop_config: dict):
     prompt_info = metadata.get("prompt")
     if prompt_info is None:
         raise RuntimeError(
-            f"No prompt info in metadata for DVC version {infra.dvc_data_version_tag}"
+            f"No prompt info in metadata for DVC version {infra.dvc_data_version}"
         )
 
     if is_rank0:
-        log_key_value("DVC Version", infra.dvc_data_version_tag)
+        log_key_value("DVC Version", infra.dvc_data_version)
         log_key_value(
             "Prompt", f"{prompt_info['prompt_name']} v{prompt_info['prompt_version']}"
         )
@@ -325,20 +325,18 @@ def train_driver(config: TrainConfig, infra: InfraConfig) -> ray.train.Result:
     log_info("Loading metadata from DVC...")
     metadata = load_metadata_from_dvc(
         repo=infra.dvc_repo,
-        version=infra.dvc_data_version_tag,
+        version=infra.dvc_data_version,
         metadata_path=infra.dvc_metadata_path,
     )
     prompt_info = metadata.get("prompt")
     if prompt_info is None:
-        raise RuntimeError(
-            f"No prompt info in metadata for {infra.dvc_data_version_tag}"
-        )
+        raise RuntimeError(f"No prompt info in metadata for {infra.dvc_data_version}")
 
     # Show training configuration
     log_training_summary(
         model=config.model.name,
         method=config.training_method_summary,
-        dataset=f"DVC: {infra.dvc_data_version_tag}",
+        dataset=f"DVC: {infra.dvc_data_version}",
         steps=config.training.max_steps,
         batch_size=config.training.batch_size,
         lr=config.training.learning_rate,
@@ -357,7 +355,7 @@ def train_driver(config: TrainConfig, infra: InfraConfig) -> ray.train.Result:
     workflow_tags = {
         "argo_workflow_uid": infra.argo_workflow_uid,
         "docker_image_tag": infra.docker_image_tag,
-        "dvc_data_version_tag": infra.dvc_data_version_tag,
+        "dvc_data_version": infra.dvc_data_version,
         "prompt_name": prompt_info["prompt_name"],
         "prompt_version": str(prompt_info["prompt_version"]),
     }
@@ -380,7 +378,7 @@ def train_driver(config: TrainConfig, infra: InfraConfig) -> ray.train.Result:
                 else None,
                 "quantization_enabled": config.training.quantization.enabled,
                 "flash_attention": config.training.optimization.flash_attention,
-                "dvc_data_version_tag": infra.dvc_data_version_tag,
+                "dvc_data_version": infra.dvc_data_version,
             }
         )
 
@@ -415,7 +413,7 @@ def train_driver(config: TrainConfig, infra: InfraConfig) -> ray.train.Result:
         )
 
         # Run training
-        log_section("Distributed Training", "🏋️")
+        log_section("Run Training", "🏋️")
         result = ray_trainer.fit()
 
         # Clear GPU memory
@@ -511,7 +509,7 @@ def main():
     # Infrastructure from env vars (CI controls)
     log_info("Loading infrastructure config from environment")
     infra = InfraConfig()
-    log_key_value("DVC Version", infra.dvc_data_version_tag)
+    log_key_value("DVC Version", infra.dvc_data_version)
     log_key_value("MLflow URI", infra.mlflow_tracking_uri)
     log_key_value("Experiment", infra.mlflow_experiment_name)
 

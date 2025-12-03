@@ -30,7 +30,7 @@ wheels = [
 ]
 
 [[package]]
-name = "ai-generative-qwen"
+name = "ai-radiology-qwen"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

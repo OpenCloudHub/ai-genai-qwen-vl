@@ -57,6 +57,12 @@ class QwenTrainer(Trainer):
         """Configure which model components are trainable based on config."""
         logger.info("Configuring trainable parameters...")
 
+        # Skip if LoRA is enabled - PEFT handles trainability
+        if self.training_config.lora.enabled:
+            logger.info("LoRA enabled - PEFT manages trainable parameters")
+            self._log_parameter_summary()
+            return
+
         model = self.model
         cfg = self.model_config
 

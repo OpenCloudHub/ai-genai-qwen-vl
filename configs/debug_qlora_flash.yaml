@@ -21,7 +21,6 @@ training:
   warmup_steps: 2
   logging_steps: 2
   save_steps: 10
-  max_length: 512
   
   lora:
     enabled: true

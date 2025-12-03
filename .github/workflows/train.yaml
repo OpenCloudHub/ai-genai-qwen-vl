@@ -3,7 +3,7 @@ name: MLOPS Pipeline
 on:
   workflow_dispatch:
     inputs:
-      dvc_data_version_tag:
+      dvc_data_version:
         description: 'Data version (latest or specific like v1.0.0)'
         required: false
         type: string
@@ -70,7 +70,7 @@ jobs:
     with:
       model_name: "fashion-mnist-classifier"
       dvc_dataset: "fashion-mnist"
-      dvc_data_version_tag: ${{ inputs.dvc_data_version_tag }}
+      dvc_data_version: ${{ inputs.dvc_data_version }}
       experiment_name: "fashion-mnist"
       training_entrypoint: ${{ inputs.training_entrypoint }}
       training_args: ${{ inputs.training_args }}

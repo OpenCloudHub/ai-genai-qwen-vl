@@ -28,14 +28,12 @@ class InfraConfig:
     dvc_repo: str = os.environ.get(
         "DVC_REPO", "https://github.com/OpenCloudHub/data-registry"
     )
-    dvc_data_version_tag: str = os.environ[
-        "DVC_DATA_VERSION_TAG"
-    ]  # Required - fail if not set
+    dvc_data_version: str = os.environ["DVC_DATA_VERSION"]  # Required - fail if not set
     dvc_processed_path: str = os.environ.get(
-        "DVC_PROCESSED_PATH", "data/radiology-mini/processed"
+        "DVC_PROCESSED_PATH", "data/roco-radiology/processed"
     )
     dvc_metadata_path: str = os.environ.get(
-        "DVC_METADATA_PATH", "data/radiology-mini/metadata.json"
+        "DVC_METADATA_PATH", "data/roco-radiology/metadata.json"
     )
 
     # MLflow

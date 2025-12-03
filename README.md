@@ -178,13 +178,13 @@ Required environment variables:
     # Tracking
     ARGO_WORKFLOW_UID=DEV
     DOCKER_IMAGE_TAG=DEV
-    DVC_DATA_VERSION_TAG=roco-radiology-v1.0.0
+    DVC_DATA_VERSION=roco-radiology-v1.0.0
 ```
 
 4. **Start Ray**
 
 ```bash
-   ray start --head --num-gpus 1
+   ray start --head --num-gpus 1 --num-cpus 12
 ```
 
 ______________________________________________________________________

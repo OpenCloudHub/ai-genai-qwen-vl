@@ -1,7 +1,7 @@
 # QLoRA validation (10 steps)
 # VRAM: ~8-10 GB
 data:
-  dvc_data_version_tag: "radiology-mini-v1.0.0"
+  dvc_data_version: "radiology-mini-v1.0.0"
   do_train: true
   do_eval: false
 
@@ -9,7 +9,7 @@ model:
   name: "Qwen/Qwen2.5-VL-3B-Instruct"
   tune_vision: false
   tune_mlp: true
-  tune_llm: false
+  tune_llm: true
 
 training:
   output_dir: "./outputs/debug_qlora"

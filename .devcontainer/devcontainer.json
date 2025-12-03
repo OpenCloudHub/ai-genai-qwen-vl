@@ -7,12 +7,10 @@
 	},
 	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace/project,type=bind",
 	"workspaceFolder": "/workspace/project",
-	"runArgs": [
-		"--network",
-		"host",
-		"--gpus",
-		"all"
-	],
+	"runArgs": ["--network", "host", "--gpus", "all"],
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {}
+	}, // Install GitHub CLI and Docker CLI inside the container
 	"postCreateCommand": "pre-commit run --all",
 	"customizations": {
 		"vscode": {
@@ -32,10 +30,9 @@
 				"oderwat.indent-rainbow"
 			],
 			"settings": {
-				"python.analysis.extraPaths": [
-					"${workspaceFolder}"
-				],
-				"jupyter.notebookFileRoot": "${workspaceFolder}"
+				"python.analysis.extraPaths": ["${workspaceFolder}"],
+				"jupyter.notebookFileRoot": "${workspaceFolder}",
+				"python.defaultInterpreterPath": "/opt/venv/bin/python"
 			}
 		}
 	}
