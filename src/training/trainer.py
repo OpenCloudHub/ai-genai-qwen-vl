@@ -483,20 +483,30 @@ class QwenTrainer(Trainer):
         print("MODEL TRAINING STATUS")
         print("=" * 60)
 
+        is_lora = self.training_config.lora.enabled
+
         # Vision encoder status
-        self._print_component_status("visual", "Vision Encoder")
+        self._print_component_status("visual", "Vision Encoder", is_lora=is_lora)
 
         # Merger/Projector status
         self._print_component_status(
-            "visual.merger", "Vision-Language Connector", nested=True
+            "visual.merger", "Vision-Language Connector", nested=True, is_lora=is_lora
         )
 
         # LLM status
-        self._print_component_status("model", "Language Model")
+        self._print_component_status("model", "Language Model", is_lora=is_lora)
 
+        # Summary
+        total_params = sum(p.numel() for p in self.model.parameters())
+        trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        print("-" * 60)
+        print(f"Total Parameters: {total_params:,}")
+        print(f"Trainable Parameters: {trainable_params:,} ({100 * trainable_params / total_params:.2f}%)")
+        if is_lora:
+            print(f"Training Method: QLoRA (base model frozen, LoRA adapters trainable)")
         print("=" * 60)
 
-    def _print_component_status(self, pattern: str, name: str, nested: bool = False):
+    def _print_component_status(self, pattern: str, name: str, nested: bool = False, is_lora: bool = False):
         """Print trainability status for a model component."""
         try:
             if nested:
@@ -507,11 +517,20 @@ class QwenTrainer(Trainer):
             else:
                 module = getattr(self.model, pattern)
 
-            trainable = sum(1 for p in module.parameters() if p.requires_grad)
-            total = sum(1 for p in module.parameters())
+            trainable_params = sum(p.numel() for p in module.parameters() if p.requires_grad)
+            total_params = sum(p.numel() for p in module.parameters())
 
-            status = "TRAINING" if trainable > 0 else "FROZEN"
-            print(f"{name}: {status} ({trainable}/{total} params trainable)")
+            if trainable_params == 0:
+                print(f"{name}: FROZEN")
+            elif is_lora:
+                # Count LoRA modules
+                lora_modules = sum(1 for n, _ in module.named_modules() if "lora" in n.lower())
+                print(f"{name}: LoRA adapters active ({trainable_params:,} params, {lora_modules} modules)")
+            else:
+                if trainable_params == total_params:
+                    print(f"{name}: FULL FINE-TUNING ({trainable_params:,} params)")
+                else:
+                    print(f"{name}: PARTIAL ({trainable_params:,}/{total_params:,} params)")
 
         except AttributeError:
             print(f"{name}: NOT FOUND")
