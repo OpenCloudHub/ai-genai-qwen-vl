@@ -115,6 +115,13 @@ WORKDIR /workspace/project
 # Copy UV binary
 COPY --from=uv_source /uv /uvx /usr/local/bin/
 
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+
+# Create venv directory with ray user ownership
+USER root
+RUN mkdir -p /opt/venv && chown ray:users /opt/venv
+USER ray
+
 COPY pyproject.toml uv.lock ./
 
 # Install base + serving dependencies

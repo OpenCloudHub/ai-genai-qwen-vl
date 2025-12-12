@@ -26,6 +26,7 @@ ______________________________________________________________________
   <summary>📑 Table of Contents</summary>
   <ol>
     <li><a href="#about">About</a></li>
+    <li><a href="#thesis-context">Thesis Context</a></li>
     <li><a href="#features">Features</a></li>
     <li><a href="#architecture">Architecture</a></li>
     <li><a href="#getting-started">Getting Started</a></li>
@@ -50,11 +51,38 @@ This repository demonstrates fine-tuning [Qwen2.5-VL](https://huggingface.co/Qwe
 
 - MLflow doesn't natively support Vision-Language Models - this shows how to make it work using a custom PyFunc wrapper
 - Demonstrates multimodal AI (image + text) in an MLOps context
-- Shows how to combine HuggingFace Transformers with Ray for distributed GPU training
+- Shows how to combine HuggingFace Transformers with Ray for GPU training
 - Provides a reference for QLoRA/LoRA fine-tuning with proper experiment tracking
 - Illustrates data versioning with DVC and prompt tracking through the full pipeline
 
 This is not a production system - it's a learning resource and integration showcase.
+
+______________________________________________________________________
+
+<h2 id="thesis-context">📚 Thesis Context</h2>
+
+<!-- TODO:  -->
+
+### Key Technical Contributions
+
+| Challenge                 | Solution                            | Location                         |
+| ------------------------- | ----------------------------------- | -------------------------------- |
+| VLM experiment tracking   | Custom MLflow PyFunc wrapper        | `src/training/mlflow_wrapper.py` |
+| Prompt-model consistency  | Prompt baked into checkpoint        | `src/training/callbacks.py`      |
+| Memory-efficient training | QLoRA with gradient checkpointing   | `src/training/trainer.py`        |
+| Memory-efficient serving  | 4-bit quantized inference           | `SERVE_QUANTIZED=true` env var   |
+| Reproducible data         | DVC versioning with metadata        | `src/training/dvc_loader.py`     |
+| Config separation         | Env vars (infra) vs YAML (training) | `src/training/config.py`         |
+
+### Reading the Code
+
+For thesis reviewers, the recommended reading order is:
+
+1. **[config.py](src/training/config.py)** - Understand the configuration philosophy (infra vs training separation)
+1. **[train.py](src/training/train.py)** - Entry point showing the driver-worker pattern
+1. **[mlflow_wrapper.py](src/training/mlflow_wrapper.py)** - The key innovation: PyFunc wrapper for VLMs
+1. **[callbacks.py](src/training/callbacks.py)** - How prompts and processors are bundled with checkpoints
+1. **[serve.py](src/serving/serve.py)** - How models are loaded and served via Ray Serve
 
 ______________________________________________________________________
 
@@ -64,14 +92,16 @@ ______________________________________________________________________
 - ⚡ **QLoRA/LoRA Support**: Memory-efficient fine-tuning with 4-bit quantization
 - 📊 **MLflow Integration**: Custom PyFunc wrapper for VLM tracking and serving
 - 📦 **DVC Data Pipeline**: Versioned datasets with prompt tracking through lineage
-- 🔀 **Ray Train**: Distributed GPU training with checkpointing
-- 🚀 **Ray Serve**: Scalable inference with base64 image input
+- 🔀 **Ray Train**: Distributed GPU training with fault tolerance and checkpointing
+- 🚀 **Ray Serve**: Scalable inference with hot model reloading
 - ⚙️ **Config Separation**: Infrastructure (env vars) vs training params (YAML)
 - 🐳 **Containerized**: Docker-based training for reproducibility
 
 ______________________________________________________________________
 
 <h2 id="architecture">🏗️ Architecture</h2>
+
+### System Overview
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -80,7 +110,7 @@ ______________________________________________________________________
 │  HuggingFace  ──►  Download  ──►  Process  ──►  Analyze             │
 │  Dataset           (raw)         (+ prompt)     (metadata)          │
 │                                      │                              │
-│                         MLflow Prompt Registry                      │
+│             MLflow Prompt Registry / DVC Data Registry              │
 └─────────────────────────────────────────────────────────────────────┘
                                        │
                                        ▼
@@ -105,15 +135,73 @@ ______________________________________________________________________
 │                       Serving (Ray Serve)                           │
 ├─────────────────────────────────────────────────────────────────────┤
 │  Load from MLflow  ──►  QwenVLDeployment  ──►  /predict (base64)    │
-│  (model + prompt)       FastAPI + batching       JSON response      │
+│  (model + prompt)       FastAPI + scaling       JSON response       │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Key Integration Points:**
+### Training Architecture (Ray Train)
+
+The training uses a **driver-worker pattern** with single-GPU execution:
+
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│                        HEAD NODE (Driver)                        │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │  train_driver()                                            │  │
+│  │  • Downloads data from DVC (once)                          │  │
+│  │  • Creates MLflow run with tags                            │  │
+│  │  • Configures Ray TorchTrainer                             │  │
+│  │  • Registers final model to MLflow                         │  │
+│  └────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                         GPU WORKER                               │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │  train_worker()                                            │  │
+│  │  • Loads model with QLoRA/LoRA                             │  │
+│  │  • Creates PyTorch Dataset from local path                 │  │
+│  │  • Runs HuggingFace Trainer                                │  │
+│  │  • Reports checkpoints to Ray                              │  │
+│  └────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+> **Note:** This demo uses single-GPU training. For distributed DDP training, one would load
+> only shards of data in the worker nodes. An example of this using
+> Ray Data for distributed training with data sharding,
+> see [Ray Data with PyTorch Lightning](https://github.com/OpenCloudHub/ai-dl-lightning).
+
+### Serving Architecture (Ray Serve)
+
+```text
+┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   Client    │────▶│    Ray Serve     │────▶│     MLflow      │
+│  (FastAPI)  │     │   (Scaling)      │     │    (Models)     │
+└─────────────┘     └──────────────────┘     └─────────────────┘
+       │                     │
+       │              ┌──────┴──────┐
+       │              ▼             ▼
+       │         ┌────────┐   ┌────────┐
+       │         │Replica │   │Replica │  (Autoscaling)
+       │         │  0.25  │   │  0.25  │  (Fractional GPU)
+       │         │  GPU   │   │  GPU   │
+       │         └────────┘   └────────┘
+       │
+  Endpoints:
+  GET  /        → Service info
+  GET  /health  → Kubernetes readiness probe
+  GET  /info    → Model metadata from MLflow
+  POST /predict → Image analysis (file upload)
+```
+
+### Key Integration Points
 
 1. **Prompt Lineage**: Prompts are versioned in MLflow, embedded during data processing, tracked through training, and used at inference
 1. **Checkpoint Contents**: Model weights + processor + prompt_info.json (everything needed to serve)
 1. **MLflow PyFunc**: Custom wrapper handles VLM loading since MLflow doesn't support vision-language natively
+1. **Quantized Serving**: `SERVE_QUANTIZED=true` enables 4-bit inference (~4GB vs ~8GB VRAM)
 
 ______________________________________________________________________
 
@@ -130,8 +218,8 @@ ______________________________________________________________________
 1. **Clone the repository**
 
 ```bash
-   git clone https://github.com/opencloudhub/ai-qwen-demo.git
-   cd ai-qwen-demo
+git clone https://github.com/opencloudhub/ai-radiology-qwen.git
+cd ai-radiology-qwen
 ```
 
 2. **Open in DevContainer** (Recommended)
@@ -141,108 +229,96 @@ ______________________________________________________________________
    Or **setup locally**:
 
 ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   uv sync --dev
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv sync --dev
 ```
 
 3. **Configure environment**
 
+Two environment files are provided:
+
+| File            | Use Case                                           |
+| --------------- | -------------------------------------------------- |
+| `.env.docker`   | Local Docker Compose (MLflow + MinIO on localhost) |
+| `.env.minikube` | Minikube/Kubernetes (internal cluster URLs)        |
+
 ```bash
-   cp .env.example .env
-   # Edit .env with your MLflow/MinIO credentials
+# For local Docker Compose setup
+set -a && source .env.docker && set +a
+
+# Or for Minikube
+set -a && source .env.minikube && set +a
 ```
 
-Required environment variables:
-
-```bash
-    AWS_ACCESS_KEY_ID=admin
-    AWS_SECRET_ACCESS_KEY=admin123
-    AWS_ENDPOINT_URL=https://minio-api.internal.opencloudhub.org
-    DVC_REPO=https://github.com/OpenCloudHub/data-registry
-
-    # MLflow
-    MLFLOW_TRACKING_URI=http://localhost:5000
-    MLFLOW_S3_ENDPOINT_URL=http://localhost:9000
-    MLFLOW_TRACKING_INSECURE_TLS=true
-    MLFLOW_LOGGING_LEVEL=DEBUG
-    MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING=true
-    MLFLOW_EXPERIMENT_NAME=roco-radiology-vqa
-    MLFLOW_REGISTERED_MODEL_NAME=dev.roco-radiology-vqa
-
-    # Ray
-    RAY_TRAIN_V2_ENABLED=1
-    RAY_STORAGE_PATH=/tmp/ray_results
-
-    # Tracking
-    ARGO_WORKFLOW_UID=DEV
-    DOCKER_IMAGE_TAG=DEV
-    DVC_DATA_VERSION=roco-radiology-v1.0.0
-```
+See [Configuration](#configuration) for details on all environment variables.
 
 4. **Start Ray**
 
 ```bash
-   ray start --head --num-gpus 1 --num-cpus 12
+ray start --head --num-gpus 1 --num-cpus 12
 ```
 
 ______________________________________________________________________
 
 <h2 id="configuration">⚙️ Configuration</h2>
 
-Configuration is split into two categories by design:
+Configuration is split into two categories by design - this separation is intentional:
 
 ### Infrastructure Config (Environment Variables)
 
-CI/CD controls these - developers cannot override via YAML:
+**CI/CD controls these** - developers should not override via YAML. This ensures reproducibility and prevents accidental use of wrong endpoints.
 
-| Variable                       | Description                                      | Required              |
-| ------------------------------ | ------------------------------------------------ | --------------------- |
-| `DVC_DATA_VERSION`             | Data version tag (e.g., `radiology-mini-v1.0.0`) | Yes                   |
-| `DVC_REPO`                     | DVC repository URL                               | No (has default)      |
-| `MLFLOW_TRACKING_URI`          | MLflow server URL                                | No (has default)      |
-| `MLFLOW_EXPERIMENT_NAME`       | Experiment name                                  | No (has default)      |
-| `MLFLOW_REGISTERED_MODEL_NAME` | Model registry name                              | No (has default)      |
-| `RAY_NUM_WORKERS`              | Number of Ray workers                            | No (default: 1)       |
-| `ARGO_WORKFLOW_UID`            | Workflow tracking ID                             | No (default: "local") |
-| `DOCKER_IMAGE_TAG`             | Image tag for reproducibility                    | No (default: "dev")   |
+| Variable                       | Description                   | Required         |
+| ------------------------------ | ----------------------------- | ---------------- |
+| `DVC_DATA_VERSION`             | Data version tag              | **Yes**          |
+| `DVC_REPO`                     | DVC repository URL            | No (has default) |
+| `MLFLOW_TRACKING_URI`          | MLflow server URL             | No (has default) |
+| `MLFLOW_EXPERIMENT_NAME`       | Experiment name               | No (has default) |
+| `MLFLOW_REGISTERED_MODEL_NAME` | Model registry name           | No (has default) |
+| `RAY_NUM_WORKERS`              | Number of Ray workers         | No (default: 1)  |
+| `RAY_GPU_FRACTION`             | GPU fraction per worker (0-1) | No (default: 1)  |
+| `ARGO_WORKFLOW_UID`            | Workflow tracking ID          | No               |
+| `DOCKER_IMAGE_TAG`             | Image tag for reproducibility | No               |
 
 ### Training Config (YAML)
 
-Developers control these via config files:
+**Developers control these** via config files in `configs/`:
 
 ```yaml
 # configs/qlora.yaml
 data:
-  max_pixels: 451584
-  min_pixels: 12544
+  max_pixels: 451584      # Max image resolution
+  min_pixels: 12544       # Min image resolution
+  sampling_percent: 1.0   # Use 100% of data
 
 model:
   name: "Qwen/Qwen2.5-VL-3B-Instruct"
-  tune_vision: false
-  tune_mlp: true      # Train vision-language connector
-  tune_llm: false
+  tune_vision: false      # Freeze vision encoder
+  tune_mlp: true          # Train vision-language connector
+  tune_llm: false         # Freeze language model
 
 training:
   max_steps: 100
   batch_size: 1
   learning_rate: 2.0e-4
+  mm_projector_lr: 2.0e-5  # Separate LR for projector
 
   lora:
     enabled: true
-    r: 64
-    alpha: 128
+    r: 64                  # LoRA rank
+    alpha: 128             # LoRA alpha
+    target_modules: "all-linear"
 
   quantization:
-    enabled: true
-    type: "nf4"
-    load_in_4bit: true
+    enabled: true          # Enable 4-bit quantization
+    type: "nf4"            # NormalFloat4
+    double_quant: true     # Double quantization
 
   optimization:
-    gradient_checkpointing: true
+    gradient_checkpointing: true  # Save memory
+    flash_attention: false        # Requires flash-attn package
     bf16: true
 ```
-
-To make it even more flexible one could look for integrations with e.g. [Hydra](https://hydra.cc/).
 
 ______________________________________________________________________
 
@@ -262,11 +338,21 @@ This separation allows:
 
 ### Pipeline Stages
 
-The external pipeline handles:
-
-1. **download**: Fetch ROCO dataset from HuggingFace, save as images + captions JSON
-1. **process**: Load prompt from MLflow, convert to Qwen conversation format, train/test split
-1. **analyze**: Compute statistics, embed prompt metadata into `metadata.json`
+```text
+┌────────────┐     ┌────────────┐     ┌────────────┐
+│  Download  │────▶│  Process   │────▶│  Analyze   │
+│            │     │            │     │            │
+│ HuggingFace│     │ + Prompt   │     │ Statistics │
+│ → Images   │     │ → Qwen fmt │     │ → metadata │
+└────────────┘     └────────────┘     └────────────┘
+                         ▲
+                         │
+                   ┌─────┴─────┐
+                   │  MLflow   │
+                   │  Prompt   │
+                   │  Registry │
+                   └───────────┘
+```
 
 ### Prompt Tracking
 
@@ -276,43 +362,60 @@ Prompts are versioned in MLflow and flow through the entire pipeline:
 MLflow Registry → DVC Process → metadata.json → Training → Checkpoint → Serving
 ```
 
-The model always uses the exact prompt it was trained with.
+The model always uses the exact prompt it was trained with - this prevents train-serve skew.
 
 ______________________________________________________________________
 
 <h2 id="training">🏋️ Training</h2>
 
-### Local Training
+### Quick Start
 
 ```bash
-# Run training
+# Local training
 python src/training/train.py --config configs/debug_qlora.yaml
-```
 
-### Via Ray Job API
-
-This spins up a local cluster to submit the job to for testing close to how workflows would run in production.
-
-```bash
-ray start --head --num-cpus 8
+# Via Ray Job API (closer to production)
 RAY_ADDRESS='http://127.0.0.1:8265' ray job submit \
   --working-dir . \
-  -- python src/training/train.py --config configs/debug_qlora.yaml
+  -- python src/training/train.py --config configs/debug_qlora_flash.yaml
 ```
 
 ### Training Methods
 
-| Method | Config                                            | Memory | Use Case                        |
-| ------ | ------------------------------------------------- | ------ | ------------------------------- |
-| QLoRA  | `lora.enabled=true`, `quantization.enabled=true`  | ~8GB   | Default, fits on most GPUs      |
-| LoRA   | `lora.enabled=true`, `quantization.enabled=false` | ~16GB  | Better quality, needs more VRAM |
-| Full   | Both disabled                                     | ~24GB+ | Best quality, needs large GPU   |
+| Method    | Config                                            | VRAM   | Use Case                |
+| --------- | ------------------------------------------------- | ------ | ----------------------- |
+| **QLoRA** | `lora.enabled=true`, `quantization.enabled=true`  | ~9GB   | Default, single GPU     |
+| LoRA      | `lora.enabled=true`, `quantization.enabled=false` | ~16GB  | Better quality          |
+| Full      | Both disabled                                     | ~24GB+ | Best quality, multi-GPU |
 
-### What Gets Logged
+### GPU Memory Usage (RTX 4070 Ti Super 16GB)
 
-- **MLflow Params**: Model name, training method, hyperparameters, DVC version, prompt version
-- **MLflow Tags**: `argo_workflow_uid`, `docker_image_tag`, `dvc_data_version`, `prompt_name`, `prompt_version`
-- **Checkpoint**: Model weights, processor, `prompt_info.json`
+| Workload                         | VRAM        |
+| -------------------------------- | ----------- |
+| QLoRA Training                   | ~9GB        |
+| Serving (unquantized)            | ~8GB        |
+| Serving (quantized)              | ~4GB        |
+| **Training + Quantized Serving** | **~13GB** ✓ |
+
+This allows demonstrating training and serving simultaneously on a single GPU.
+
+### What Gets Logged to MLflow
+
+**Parameters:**
+
+- `model_name`, `training_method`, `batch_size`, `learning_rate`, `max_steps`
+- `lora_r`, `lora_alpha`, `quantization_enabled`, `flash_attention`
+- `dvc_data_version`
+
+**Tags:**
+
+- `argo_workflow_uid`, `docker_image_tag`, `prompt_name`, `prompt_version`
+
+**Artifacts:**
+
+- Model weights (LoRA adapters or full model)
+- Processor configuration
+- `prompt_info.json` (ensures serving uses training prompt)
 
 ______________________________________________________________________
 
@@ -321,74 +424,121 @@ ______________________________________________________________________
 ### Start Serving
 
 ```bash
+# Standard serving
 serve run src.serving.serve:app_builder \
-  model_uri="models:/dev.roco-radiology-vqa/11" \
-  --reload
+  model_uri="models:/dev.roco-radiology-vqa/1"
+
+# With quantization (saves ~50% VRAM)
+SERVE_QUANTIZED=true serve run src.serving.serve:app_builder \
+  model_uri="models:/dev.roco-radiology-vqa/1"
 ```
 
-### API Usage
+### API Endpoints
 
-**Endpoint**: `POST /predict`
+| Endpoint   | Method | Description                  |
+| ---------- | ------ | ---------------------------- |
+| `/`        | GET    | Service info and links       |
+| `/health`  | GET    | Kubernetes readiness probe   |
+| `/info`    | GET    | Model metadata from MLflow   |
+| `/predict` | POST   | Image analysis (file upload) |
+| `/docs`    | GET    | Swagger UI                   |
+
+### Usage Example
 
 ```bash
-# Encode image to base64
-BASE64_IMAGE=$(base64 -w 0 test_image.jpg)
-
-# Call API
+# Single image
 curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d "{\"image\": \"$BASE64_IMAGE\"}"
+  -F "files=@chest_xray.jpg"
+
+# Multiple images
+curl -X POST http://localhost:8000/predict \
+  -F "files=@image1.jpg" \
+  -F "files=@image2.jpg"
 ```
 
 **Response:**
 
 ```json
 {
-  "description": "Chest X-ray showing bilateral pulmonary infiltrates..."
+  "predictions": [
+    {
+      "image_index": 0,
+      "filename": "chest_xray.jpg",
+      "text": "Chest X-ray showing bilateral pulmonary infiltrates..."
+    }
+  ],
+  "num_images": 1,
+  "model_uri": "models:/dev.roco-radiology-vqa/1",
+  "processing_time_ms": 1234.5
 }
 ```
 
-### Swagger UI
+### Hot Model Reloading
 
-Access interactive docs at `http://localhost:8000/docs`
+Update the model without restarting the service:
 
-### How Serving Works
+```python
+import requests
 
-1. Ray Serve loads model from MLflow using the custom PyFunc wrapper
-1. Wrapper reads `prompt_info.json` from checkpoint artifacts
-1. Each request: decode base64 → apply training prompt → generate → return text
+requests.post(
+    "http://localhost:8000/reconfigure",
+    json={"model_uri": "models:/dev.roco-radiology-vqa/2"},
+)
+```
 
 ______________________________________________________________________
 
 <h2 id="project-structure">📁 Project Structure</h2>
 
 ```text
-ai-qwen-demo/
+ai-radiology-qwen/
 ├── src/
-│   ├── training/
-│   │   ├── train.py              # Entry point
-│   │   ├── config.py             # InfraConfig (env) + TrainConfig (YAML)
-│   │   ├── trainer.py            # Custom HF Trainer with multi-LR support
-│   │   ├── callbacks.py          # Ray checkpoint callback
-│   │   ├── data.py               # Dataset and collator
-│   │   ├── dvc_loader.py         # Load data from DVC
-│   │   ├── mlflow_wrapper.py     # PyFunc wrapper for VLM
-│   │   └── log.py                # Structured logging
-│   └── serving/
-│       └── serve.py              # Ray Serve deployment
-├── configs/
-│   ├── debug_qlora.yaml          # Quick test config
+│   ├── training/                 # Training pipeline
+│   │   ├── train.py              # Entry point (driver-worker pattern)
+│   │   ├── config.py             # Configuration (env + YAML separation)
+│   │   ├── trainer.py            # Custom HF Trainer with multi-LR
+│   │   ├── callbacks.py          # Checkpoint callback (bundles prompt)
+│   │   ├── data.py               # Dataset and collator (3D RoPE)
+│   │   ├── dvc_loader.py         # Data versioning integration
+│   │   ├── mlflow_wrapper.py     # PyFunc wrapper (key innovation)
+│   │   └── log.py                # JSON logging for observability
+│   │
+│   └── serving/                  # Inference API
+│       ├── serve.py              # Ray Serve + FastAPI
+│       └── schemas.py            # Pydantic request/response models
+│
+├── configs/                      # Training configurations
+│   ├── debug_qlora.yaml          # Quick test (10 steps)
+│   ├── debug_qlora_flash.yaml    # With flash attention
 │   ├── debug_lora.yaml           # LoRA without quantization
-│   └── qlora.yaml                # Full training config
-├── tests/
-├── .devcontainer/
-├── .github/workflows/
-│   ├── build.yaml                # Build and push Docker image
-│   └── train.yaml                # Trigger training in cluster
-├── Dockerfile
-├── pyproject.toml
-└── uv.lock
+│   └── demo.yaml                 # Demo configuration
+│
+├── data/                         # Sample data for testing
+│   └── radiology_mini/
+│
+├── notebooks/                    # Exploration notebooks
+│
+├── .github/workflows/            # CI/CD
+│   ├── ci-code-quality.yaml      # Linting, formatting
+│   ├── ci-docker-build-push.yaml # Build container
+│   └── train.yaml                # Trigger training
+│
+├── Dockerfile                    # Multi-stage build
+├── pyproject.toml                # Dependencies (uv)
+└── README.md                     # You are here
 ```
+
+### Module Descriptions
+
+| Module              | Purpose                                                             |
+| ------------------- | ------------------------------------------------------------------- |
+| `train.py`          | Orchestrates training: loads config, sets up MLflow, runs Ray Train |
+| `config.py`         | Separates infrastructure (env) from training (YAML) configuration   |
+| `trainer.py`        | Custom HuggingFace Trainer with per-component learning rates        |
+| `callbacks.py`      | Bundles processor and prompt into checkpoints for serving           |
+| `data.py`           | Handles Qwen's conversation format and 3D position encoding         |
+| `mlflow_wrapper.py` | Enables MLflow to serve VLMs (the key innovation)                   |
+| `serve.py`          | FastAPI application with health checks and batch inference          |
 
 ______________________________________________________________________
 
@@ -410,12 +560,13 @@ ______________________________________________________________________
 
 Organization Link: [https://github.com/OpenCloudHub](https://github.com/OpenCloudHub)
 
-Project Link: [https://github.com/opencloudhub/ai-qwen-demo](https://github.com/opencloudhub/ai-qwen-demo)
+Project Link: [https://github.com/opencloudhub/ai-radiology-qwen](https://github.com/opencloudhub/ai-radiology-qwen)
 
 ______________________________________________________________________
 
 <h2 id="acknowledgements">🙏 Acknowledgements</h2>
 
+- [Official QwenVL Repo](https://github.com/QwenLM/Qwen3-VL/tree/main/qwen-vl-finetune)
 - [Qwen2.5-VL](https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct) - Vision-Language Model
 - [MLflow](https://mlflow.org/) - ML lifecycle management
 - [Ray](https://ray.io/) - Distributed training and serving
