@@ -40,9 +40,17 @@ from rich.table import Table
 LOG_LEVEL = getenv("LOG_LEVEL", "INFO").upper()
 
 # =============================================================================
-# Rich Console (for visual output only, not logging)
+# Lazy Rich Console (avoid pickling issues with Ray)
 # =============================================================================
-console = Console(force_terminal=True, stderr=True)
+_console = None
+
+
+def _get_console():
+    global _console
+    if _console is None:
+        _console = Console(force_terminal=True, stderr=True)
+    return _console
+
 
 # =============================================================================
 # Lazy Loguru Setup (avoid pickling issues with Ray)
@@ -54,7 +62,7 @@ def _setup_logging():
     global _configured
     if _configured:
         return
-    
+
     logger.remove()
 
     # Bound loggers (from get_logger)
@@ -141,38 +149,38 @@ def get_logger(name: str):
 # =============================================================================
 def log_section(title: str, emoji: str = "📌") -> None:
     """Print a visual section separator."""
-    console.rule(f"[bold cyan]{emoji} {title}[/]", style="cyan")
+    _get_console().rule(f"[bold cyan]{emoji} {title}[/]", style="cyan")
 
 
 def log_success(message: str) -> None:
     """Print a success message."""
-    console.print(f"[bold green]✅ {message}[/]")
+    _get_console().print(f"[bold green]✅ {message}[/]")
 
 
 def log_warning(message: str) -> None:
     """Print a warning message."""
-    console.print(f"[bold yellow]⚠️  {message}[/]")
+    _get_console().print(f"[bold yellow]⚠️  {message}[/]")
 
 
 def log_error(message: str) -> None:
     """Print an error message."""
-    console.print(f"[bold red]❌ {message}[/]")
+    _get_console().print(f"[bold red]❌ {message}[/]")
 
 
 def log_info(message: str) -> None:
     """Print an info message."""
-    console.print(f"[cyan]ℹ️  {message}[/]")
+    _get_console().print(f"[cyan]ℹ️  {message}[/]")
 
 
 def log_step(step: int, total: int, message: str) -> None:
     """Print a step progress message."""
-    console.print(f"[dim]({step}/{total})[/] {message}")
+    _get_console().print(f"[dim]({step}/{total})[/] {message}")
 
 
 def log_key_value(key: str, value: Any, indent: int = 2) -> None:
     """Print a key-value pair."""
     spaces = " " * indent
-    console.print(f"{spaces}[dim]{key}:[/] [cyan]{value}[/]")
+    _get_console().print(f"{spaces}[dim]{key}:[/] [cyan]{value}[/]")
 
 
 def log_config_table(config: dict, title: str = "Configuration") -> None:
@@ -184,12 +192,12 @@ def log_config_table(config: dict, title: str = "Configuration") -> None:
     for key, value in config.items():
         table.add_row(str(key), str(value))
 
-    console.print(table)
+    _get_console().print(table)
 
 
 def log_panel(content: str, title: str = "", style: str = "cyan") -> None:
     """Print content in a panel box."""
-    console.print(Panel(content, title=title, border_style=style))
+    _get_console().print(Panel(content, title=title, border_style=style))
 
 
 def log_training_summary(
@@ -208,7 +216,7 @@ def log_training_summary(
 [bold]Batch Size:[/] {batch_size}
 [bold]Learning Rate:[/] {lr}"""
 
-    console.print(
+    _get_console().print(
         Panel(content, title="🚀 Training Configuration", border_style="green")
     )
 
@@ -219,4 +227,4 @@ def log_results_summary(metrics: dict, checkpoint_path: str = None) -> None:
     if checkpoint_path:
         lines.append(f"\n[bold]Checkpoint:[/] {checkpoint_path}")
 
-    console.print(Panel("\n".join(lines), title="📊 Results", border_style="green"))
+    _get_console().print(Panel("\n".join(lines), title="📊 Results", border_style="green"))
