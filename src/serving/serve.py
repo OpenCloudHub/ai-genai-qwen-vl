@@ -73,12 +73,12 @@ app = FastAPI(
 
 
 @serve.deployment(
-    ray_actor_options={
-        "num_gpus": 0.25
-    },  # FIXME: This is usually enabled by the serving cluster config, you can uncomment if needed for local testing
+    # ray_actor_options={
+    #     "num_gpus": 0.25
+    # },  # FIXME: This is usually enabled by the serving cluster config, you can uncomment if needed for local testing
 )
 @serve.ingress(app)
-class QwenVLClassifier:
+class QwenRadiologyVQA:
     def __init__(
         self,
         model_uri: str | None = None,
@@ -385,4 +385,4 @@ def app_builder(args: AppBuilderArgs) -> Application:
     Returns:
         Ray Serve Application ready to deploy
     """
-    return QwenVLClassifier.bind(model_uri=args.model_uri)
+    return QwenRadiologyVQA.bind(model_uri=args.model_uri)
