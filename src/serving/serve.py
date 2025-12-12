@@ -78,7 +78,7 @@ app = FastAPI(
     # },  # FIXME: This is usually enabled by the serving cluster config, you can uncomment if needed for local testing
 )
 @serve.ingress(app)
-class QwenRadiologyVQA:
+class QwenVLRadiologyVQAService:
     def __init__(
         self,
         model_uri: str | None = None,
@@ -385,4 +385,4 @@ def app_builder(args: AppBuilderArgs) -> Application:
     Returns:
         Ray Serve Application ready to deploy
     """
-    return QwenRadiologyVQA.bind(model_uri=args.model_uri)
+    return QwenVLRadiologyVQAService.bind(model_uri=args.model_uri)
