@@ -33,7 +33,7 @@ from loguru import logger
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-
+from ray._private.ray_logging.logging_config import LoggingConfig
 # =============================================================================
 # Configuration
 # =============================================================================
@@ -127,7 +127,7 @@ def get_logger(name: str):
         logger = get_logger(__name__)
         logger.info("Loading model", model="qwen-3b")
     """
-    return logger.bind(name=name)
+    return logger.bind(name=name)   
 
 
 # =============================================================================

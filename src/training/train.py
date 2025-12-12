@@ -508,7 +508,7 @@ def main():
 
     # Initialize Ray
     if not ray.is_initialized():
-        ray.init(logging_config=get_ray_logging_config())
+        ray.init()
         log_success("Ray initialized with JSON logging")
 
     # Run training
